@@ -1,0 +1,9 @@
+.env
+
+# Runtime data — ignore contents, keep dirs via .gitkeep
+runner-1/*
+runner-2/*
+cache/*/*
+!runner-1/.gitkeep
+!runner-2/.gitkeep
+!cache/*/.gitkeep

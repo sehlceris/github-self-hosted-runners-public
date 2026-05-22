@@ -10,6 +10,13 @@ x-runner-common: &runner-common
     LABELS: ${RUNNER_LABELS:-self-hosted,linux,arm64}
     DISABLE_AUTO_UPDATE: "true"
     EPHEMERAL: "true"
+    RUN_AS_ROOT: "false"
+
+  # Host's docker.sock GID — required so the in-container `runner` user
+  # (UID 1001) can talk to the mounted /var/run/docker.sock. The GID varies
+  # per host, which is why it lives in .env rather than being hardcoded.
+  group_add:
+    - "${DOCKER_GID:?set DOCKER_GID in .env}"
 
   cap_add:
     - NET_ADMIN

@@ -27,14 +27,12 @@ On a dedicated VM with Docker installed:
 git clone <this-repo-url> /opt/github-runner
 cd /opt/github-runner
 
-# 2. Configure the runner
-cp .env.example .env
-$EDITOR .env   # set GITHUB_PAT, GITHUB_ORG (or GITHUB_REPO_URL), RUNNER_NAME, RUNNER_LABELS
+# 2. Bootstrap the host: creates .env, detects docker.sock GID, chowns
+#    runtime dirs to UID 1001 (the in-container runner user). Idempotent.
+./setup.sh
 
-# 3. Make the runtime dirs writable by the container (UID 1000)
-#    One-time only. The runner-*/ and cache/*/ dirs are container-managed
-#    scratch space — humans don't need to own them.
-sudo chown -R 1000:1000 runner-1 runner-2 cache
+# 3. Fill in credentials
+$EDITOR .env   # set GITHUB_PAT, GITHUB_ORG (or GITHUB_REPO_URL), RUNNER_NAME, RUNNER_LABELS
 
 # 4. Bring up the runners
 docker compose up -d
@@ -43,15 +41,16 @@ docker compose up -d
 docker compose logs -f
 ```
 
+The container runs as the `runner` user (UID 1001 inside the image) via
+`RUN_AS_ROOT=false`, so the bind-mounted runtime dirs must be writable by
+UID 1001 on the host — `setup.sh` handles this, along with writing
+`DOCKER_GID` to `.env` (the host docker.sock GID varies per distro, so it
+can't be hardcoded). Re-run `setup.sh` if you ever rebuild the host and
+the docker GID changes.
+
 The runners should appear as **Idle** at
 `github.com/organizations/{org}/settings/actions/runners` (or the repo's
 runner settings page) within ~30 seconds.
-
-**Multi-user VMs:** anyone in the host's `docker` group can run
-`docker compose up` regardless of their own UID — the container writes as
-UID 1000 into the pre-owned runtime dirs. The chown step only needs to
-happen once after cloning. See [Data layout](#data-layout) for what lives
-where.
 
 ## Services
 

@@ -11,12 +11,25 @@ x-runner-common: &runner-common
     DISABLE_AUTO_UPDATE: "true"
     EPHEMERAL: "true"
     RUN_AS_ROOT: "false"
+    HOST_DOCKER_GID: ${DOCKER_GID:?set DOCKER_GID in .env}
 
-  # Host's docker.sock GID — required so the in-container `runner` user
-  # (UID 1001) can talk to the mounted /var/run/docker.sock. The GID varies
-  # per host, which is why it lives in .env rather than being hardcoded.
-  group_add:
-    - "${DOCKER_GID:?set DOCKER_GID in .env}"
+  # Renumber the in-image `docker` group to match the host's docker.sock GID
+  # *before* the original entrypoint drops privileges via `gosu runner`. The
+  # `runner` user is already a member of the in-image `docker` group, so
+  # renaming the group's GID lets it inherit socket access. `group_add` does
+  # not work here because gosu calls initgroups(3), which rebuilds the
+  # supplementary group list from /etc/group and discards compose's runtime-
+  # added GIDs. The wrapper re-execs the image's original entrypoint chain
+  # (dumb-init + entrypoint.sh) with the original CMD args.
+  #
+  # `command:` must be re-specified explicitly because Compose drops the
+  # image's default CMD whenever `entrypoint` is overridden.
+  entrypoint:
+    - /bin/bash
+    - -c
+    - 'groupmod -o -g "$$HOST_DOCKER_GID" docker && exec /usr/bin/dumb-init /bin/bash /entrypoint.sh "$$@"'
+    - --
+  command: ["./bin/Runner.Listener", "run", "--startuptype", "service"]
 
   cap_add:
     - NET_ADMIN
